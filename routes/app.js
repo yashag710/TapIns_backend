@@ -1,8 +1,8 @@
 const express = require("express");
 const router = express.Router();
+const jwt = require("jsonwebtoken");  
 
-// Import controllers
-const { checkFraud } = require("../controllers/ruleBasedController");
+const {checkFraud} = require("../controllers/ruleBasedController"); 
 const transactionController = require('../controllers/transactionController');
 const { updateController } = require("../controllers/updateController");
 const reportingController = require("../controllers/reportingController");
