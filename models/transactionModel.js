@@ -35,7 +35,6 @@ const transactionSchema = mongoose.Schema({
     },
     ip: {
         type: String,
-        required: true
     },
     is_fraud: {
         type: Boolean,

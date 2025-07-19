@@ -9,7 +9,7 @@ exports.transactionController = async (req, res) => {
     if (!messageData || !messageData.amount || !messageData.payer_id || !messageData.payee_id) {
         return res.status(400).json({ error: "Missing required transaction fields." });
     }
-
+    
     // Prepare transaction data
     const transactionData = {
         amount: parseFloat(messageData.amount || 0),
