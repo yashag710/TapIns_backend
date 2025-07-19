@@ -40,7 +40,7 @@ exports.transactionController = async (req, res) => {
 
     try {
         // Step 1: Rule-based analysis
-        const ruleBasedRes = await axios.post("http://localhost:5000/api/ruleBased", transactionData);
+        const ruleBasedRes = await axios.post("https://tapinsbackend-production.up.railway.app/api/ruleBased", transactionData);
         const ruleBasedResult = ruleBasedRes.data;
         const failedAttempts = ruleBasedResult.failed_attempts || 0;
 
@@ -56,7 +56,7 @@ exports.transactionController = async (req, res) => {
         const mlBasedResult = mlBasedRes.data;
 
         // Step 3: Final check
-        const finalCheckRes = await axios.post("http://localhost:5000/api/finalCheck", {
+        const finalCheckRes = await axios.post("https://tapinsbackend-production.up.railway.app/api/finalCheck", {
             transaction_id: transactionData.transaction_id,
             ruleBasedResult: ruleBasedResult,
             mlBasedResult: mlBasedResult
