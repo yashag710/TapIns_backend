@@ -5,7 +5,7 @@ const { dbConnect } = require("./config/mongoose-connection");
 const transactionRoutes = require("./routes/transactionRoutes");
 const axios = require("axios");
 const app = express();
-const PORT = process.env.PORT || 8080;
+const PORT = process.env.PORT || 5000;
 
 // Load environment variables
 require("dotenv").config();
@@ -13,7 +13,7 @@ require("dotenv").config();
 // Middleware
 app.use(express.json());
 app.use(cors({
-    origin: 'http://localhost:5173',
+    origin: 'https://tap-ins.vercel.app',
     credentials: true
 }));
 app.use(cookieParser());
