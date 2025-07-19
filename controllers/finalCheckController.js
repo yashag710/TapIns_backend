@@ -47,7 +47,7 @@ const finalCheckController = async (req, res) => {
 
         if (isFraud) {
             try {
-                await axios.post("http://localhost:5000/api/report-fraud", {
+                await axios.post("https://tapinsbackend-production.up.railway.app/api/report-fraud", {
                     transaction_id: transaction._id,
                     amount: transaction.amount,
                     payer_id: transaction.payer_id,
