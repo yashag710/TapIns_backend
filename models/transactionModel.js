@@ -1,9 +1,6 @@
 const mongoose = require("mongoose");
 
 const transactionSchema = mongoose.Schema({
-    transaction_id: {
-        type: String,
-    },
     failed_attempts: {
         type: Number,
         default: 0
@@ -22,18 +19,15 @@ const transactionSchema = mongoose.Schema({
     },
     payment: {
         type: String,
-        required: true,
         enum: ['pending', 'completed', 'failed']
     },
     payee_id: {
-        type: Number,
+        type: String,
         required: true,
-        ref: 'Payee'
     },
     payer_id: {
-        type: Number,
+        type: String,
         required: true,
-        ref: 'Payer'
     },
     amount: {
         type: Number,
@@ -42,10 +36,6 @@ const transactionSchema = mongoose.Schema({
     ip: {
         type: String,
         required: true
-    },
-    state : {
-        type : String,
-        required : true
     },
     is_fraud: {
         type: Boolean,

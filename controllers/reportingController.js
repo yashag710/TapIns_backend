@@ -1,9 +1,13 @@
 const transactionModel = require('../models/transactionModel');
 const fraudReportingModel = require('../models/fraud_reporting');
+const User = require('../models/userModel');
+const twilio = require("twilio");
+
+const client = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
 
 const reportFraud = async (req, res) => {
     try {
-        const { transaction_id } = req.body;
+        const { transaction_id, amount, payer_id, payee_id, timestamp, fraud_score, reason } = req.body;
 
         // Validate required fields
         if (!transaction_id) {
@@ -14,8 +18,7 @@ const reportFraud = async (req, res) => {
         }
 
         // Find the transaction
-        const transaction = await transactionModel.findOne({ transaction_id });
-        
+        const transaction = await transactionModel.findOne({ _id: transaction_id });
         if (!transaction) {
             return res.status(404).json({
                 success: false,
@@ -23,24 +26,43 @@ const reportFraud = async (req, res) => {
             });
         }
 
-        // Check if transaction is marked as fraud
-        // if (!transaction.is_fraud) {
-        //     return res.status(400).json({
-        //         success: false,
-        //         message: "Cannot report fraud for a transaction that is not marked as fraudulent"
-        //     });
-        // }
-
-        // Update the transaction with fraud report
-
         // Create a new fraud report
         const fraudReport = new fraudReportingModel({
             transaction_id: transaction._id,
             is_fraud: true,
             is_fraud_reported: true,
-            reporting_entity_id: "SEBI - ID"
+            reporting_entity_id: "SEBI - ID",
+            amount,
+            payer_id,
+            payee_id,
+            timestamp,
+            fraud_score,
+            reason
         });
         await fraudReport.save();
+
+        // Find payer's phone number
+        let payerUser = await User.findOne({ payer_id });
+        if (!payerUser && transaction.payer_id) {
+            payerUser = await User.findOne({ _id: transaction.payer_id }) || await User.findOne({ phone: transaction.payer_id });
+        }
+
+        // Send SMS if phone found
+        if (payerUser && payerUser.phone) {
+            const smsBody = `Alert: Your transaction (ID: ${transaction.transaction_id}) was flagged as fraudulent. Reason: ${reason || "Detected by our system"}. If this wasn't you, please contact support.`;
+            try {
+                await client.messages.create({
+                    body: smsBody,
+                    from: process.env.TWILIO_PHONE_NUMBER,
+                    to: payerUser.phone
+                });
+                console.log("✅ Fraud alert SMS sent to user:", payerUser.phone);
+            } catch (smsErr) {
+                console.error("❌ Failed to send SMS:", smsErr.message);
+            }
+        } else {
+            console.warn("⚠️ Could not find payer's phone number to send SMS.");
+        }
 
         return res.status(200).json({
             success: true,

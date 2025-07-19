@@ -1,119 +1,99 @@
-const Transaction = require('../models/transactionModel'); // You'll need to create this model
+const axios = require('axios');
+const getRegionFromIP = require('../utils/getRegionFromIp');
+const Transaction = require('../models/transactionModel');
 
-const getTransactions = async (req, res) => {
-  try {
-    const {
-      dateFrom,
-      dateTo,
-      payerId,
-      payeeId,
-      transactionId,
-      page = 1,
-      limit = 10,
-      ip // Get IP directly from request query/body
-    } = req.query;
+// Main controller function
+exports.transactionController = async (req, res) => {
+    const messageData = req.body;
 
-    // Remove the IP detection logic since it's coming from client
-
-    // Build filter object
-    const filter = {};
-    if (dateFrom && dateTo) {
-      filter.date = { $gte: new Date(dateFrom), $lte: new Date(dateTo) };
+    if (!messageData || !messageData.amount || !messageData.payer_id || !messageData.payee_id) {
+        return res.status(400).json({ error: "Missing required transaction fields." });
     }
-    if (payerId) filter.payer_id = payerId;
-    if (payeeId) filter.payee_id = payeeId;
-    if (transactionId) filter.transaction_id = transactionId;
 
-    // Calculate pagination
-    const skip = (page - 1) * limit;
-    
-    // Get total count
-    const total = await Transaction.countDocuments(filter);
-    
-    // Get transactions
-    const transactions = await Transaction.find(filter)
-      .skip(skip)
-      .limit(parseInt(limit))
-      .sort({ date: -1 })
-      .lean()  // Convert to plain JavaScript objects
-      .then(transactions => transactions.map(txn => ({
-        // Transform field names to match frontend expectations
-        id: txn.transaction_id,
-        date: txn.date,
-        amount: txn.amount,
-        payer: txn.payer_id,
-        payee: txn.payee_id,
-        channel: txn.payment_channel,
-        mode: txn.payment_mode,
-        fraudPredicted: txn.is_fraud ? 'Yes' : 'No',
-        fraudReported: txn.is_fraud_reported ? 'Yes' : 'No',
-        ipAddress: txn.ip_address || ip // Use the IP from request
-      })));
+    // Prepare transaction data
+    const transactionData = {
+        amount: parseFloat(messageData.amount || 0),
+        payer_id: messageData.payer_id || '',
+        payee_id: messageData.payee_id || '',
+        payment_mode: messageData.payment_mode || '',
+        payment_channel: messageData.payment_channel || '',
+        ip: messageData.ip || '',
+        state: await getRegionFromIP(messageData.ip || ''),
+        timestamp: new Date().toISOString()
+    };
 
-    // Define dynamic columns
-    const columns = [
-      { key: 'id', label: 'Transaction ID', type: 'text' },
-      { key: 'date', label: 'Date & Time', type: 'text' },
-      { key: 'amount', label: 'Amount', type: 'text' },
-      { key: 'payer', label: 'Payer ID', type: 'text' },
-      { key: 'payee', label: 'Payee ID', type: 'text' },
-      { key: 'channel', label: 'Channel', type: 'text' },
-      { key: 'mode', label: 'Payment Mode', type: 'text' },
-      { key: 'fraudPredicted', label: 'Fraud Predicted', type: 'status' },
-      { key: 'fraudReported', label: 'Fraud Sent', type: 'status' },
-      { key: 'ipAddress', label: 'IP Address', type: 'text' } // New column
-    ];
+    console.log("📥 Transaction data prepared:", transactionData);
 
-    // Send response
-    res.json({
-      data: {
-        transactions,
-        columns,
-        pagination: {
-          total,
-          page: parseInt(page),
-          limit: parseInt(limit),
-          pages: Math.ceil(total / limit)
+    // Save transaction to DB
+    let newTransaction;
+    try {
+        newTransaction = new Transaction(transactionData);
+        await newTransaction.save();
+        console.log("✅ Transaction saved successfully:", newTransaction._id);
+    } catch (error) {
+        console.error("❌ Error saving transaction:", error.message);
+        return res.status(500).json({ error: error.message });
+    }
+
+    // Add ID and timestamp to transactionData for next steps
+    transactionData.transaction_id = newTransaction._id;
+
+    try {
+        // Step 1: Rule-based analysis
+        const ruleBasedRes = await axios.post("http://localhost:5000/api/ruleBased", transactionData);
+        const ruleBasedResult = ruleBasedRes.data;
+        const failedAttempts = ruleBasedResult.failed_attempts || 0;
+
+        // Step 2: ML-based prediction
+        const mlBasedTransactionData = {
+            payer_id: transactionData.payer_id,
+            amount: transactionData.amount,
+            ip: transactionData.ip,
+            state: transactionData.state?.toString() || 'unknown',
+            failed_attempt: failedAttempts,
+        };
+        const mlBasedRes = await axios.post("https://mlmodelfraud-production.up.railway.app/predict", mlBasedTransactionData);
+        const mlBasedResult = mlBasedRes.data;
+
+        // Step 3: Final check
+        const finalCheckRes = await axios.post("http://localhost:5000/api/finalCheck", {
+            transaction_id: transactionData.transaction_id,
+            ruleBasedResult: ruleBasedResult,
+            mlBasedResult: mlBasedResult
+        });
+        const finalCheckResult = finalCheckRes.data;
+
+        // Final Response
+        if (finalCheckResult.success) {
+            console.log("✅ Final check passed for transaction:", transactionData.transaction_id);
+            return res.status(200).json({
+                state: transactionData.state.toString(),
+                amount: transactionData.amount,
+                ip: transactionData.ip,
+                transaction_id: transactionData.transaction_id,
+                rule_based: ruleBasedResult,
+                ml_based: mlBasedResult,
+                final_check: finalCheckResult,
+                timestamp: transactionData.timestamp
+            });
+        } else {
+            return res.status(403).json({
+                amount: transactionData.amount,
+                ip: transactionData.ip,
+                transaction_id: transactionData.transaction_id,
+                rule_based: ruleBasedResult,
+                ml_based: mlBasedResult,
+                final_check: finalCheckResult,
+                timestamp: transactionData.timestamp
+            });
         }
-      }
-    });
 
-  } catch (error) {
-    console.error('Error in getTransactions:', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-};
-
-const getTransactionStats = async (req, res) => {
-  try {
-    const stats = await Transaction.aggregate([
-      {
-        $group: {
-          _id: null,
-          totalTransactions: { $sum: 1 },
-          totalAmount: { $sum: '$amount' },
-          fraudulentTransactions: {
-            $sum: { $cond: [{ $eq: ['$fraudPredicted', 'Yes'] }, 1, 0] }
-          }
-        }
-      }
-    ]);
-
-    res.json({
-      stats: stats[0] || {
-        totalTransactions: 0,
-        totalAmount: 0,
-        fraudulentTransactions: 0
-      }
-    });
-
-  } catch (error) {
-    console.error('Error in getTransactionStats:', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-};
-
-module.exports = {
-  getTransactions,
-  getTransactionStats
+    } catch (error) {
+        console.error("❌ Error during transaction analysis:", error.message);
+        return res.status(500).json({
+            transaction_id: transactionData.transaction_id,
+            error: error.message,
+            timestamp: transactionData.timestamp
+        });
+    }
 };

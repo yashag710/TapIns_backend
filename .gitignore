@@ -1,0 +1,46 @@
+# Node.js dependencies
+node_modules/
+package-lock.json
+yarn.lock
+
+# Environment variables (Sensitive information like API keys, DB credentials)
+.env
+.env.local
+.env.production
+.env.development
+
+# Logs and Debugging Files
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+debug.log
+
+# Cache and Temporary Files
+.cache/
+temp/
+
+# Build and Compiled Files
+dist/
+build/
+
+# OS-generated files (Mac, Windows)
+.DS_Store
+Thumbs.db
+
+# Editor-specific files (VS Code, IntelliJ, etc.)
+.vscode/
+.idea/
+*.swp
+
+# MongoDB Data (if using local database storage)
+dump/
+*.json
+*.bson
+
+# Process manager logs (e.g., PM2 logs)
+pm2.log
+pm2.pid
+
+# Git-specific files
+.git/

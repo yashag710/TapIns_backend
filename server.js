@@ -2,8 +2,8 @@ const express = require("express");
 const cors = require("cors");
 const cookieParser = require("cookie-parser");
 const { dbConnect } = require("./config/mongoose-connection");
-const appRoutes = require("./routes/app");
-
+const transactionRoutes = require("./routes/transactionRoutes");
+const axios = require("axios");
 const app = express();
 const PORT = process.env.PORT || 5000;
 
@@ -21,8 +21,8 @@ app.use(cookieParser());
 // Database connection
 dbConnect();
 
-// Routes
-app.use("/api", appRoutes);
+// Use the routes
+app.use("/api", transactionRoutes);
 
 // Start server
 app.listen(PORT, () => {
