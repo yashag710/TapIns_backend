@@ -27,4 +27,13 @@ app.use("/api", transactionRoutes);
 // Start server
 app.listen(PORT, () => {
     console.log(`Server is running on http://localhost:${PORT}`);
+    const url = "https://tapinsbackend-production.up.railway.app";
+    setInterval(async () => {
+        try {
+          await axios.get(url);
+          console.log("Pinged server to keep it awake ⏳");
+        } catch (err) {
+          console.error("Ping failed:", err.message);
+        }
+    }, 5 * 60 * 1000); // every 5 minutes
 });
